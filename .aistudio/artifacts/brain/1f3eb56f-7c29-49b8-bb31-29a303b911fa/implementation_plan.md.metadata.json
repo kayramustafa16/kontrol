@@ -1,0 +1,6 @@
+{
+  "summary": "Updated implementation plan for Anabolik Atlas reflecting the Tripo 3D FBX pipeline: automated FBX-to-GLB conversion script, in-app 3D model file picker in settings, mesh-to-logical-muscle mapping system, bilateral pectoral selection, modular 3D viewport, and full 11-screen Turkish fitness architecture.",
+  "updatedAt": "2026-10-16T23:49:59.102882049Z",
+  "requestFeedback": true,
+  "userFacing": true
+}

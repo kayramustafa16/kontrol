@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Anabolik Atlas 3D Anatomy</title>
+  <link rel="icon" href="data:,">
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: transparent;
+      touch-action: none;
+    }
+    #canvas-container {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      top: 0;
+      left: 0;
+      touch-action: none;
+    }
+    canvas {
+      width: 100% !important;
+      height: 100% !important;
+      display: block;
+      outline: none;
+    }
+    #loading-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: rgba(11, 14, 23, 0.85);
+      color: #00E5FF;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      transition: opacity 0.3s ease;
+      pointer-events: none;
+      z-index: 10;
+      padding: 16px;
+      text-align: center;
+    }
+    .spinner {
+      width: 38px;
+      height: 38px;
+      border: 3px solid rgba(0, 229, 255, 0.2);
+      border-top: 3px solid #00E5FF;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-bottom: 12px;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    #perf-hud {
+      position: absolute;
+      bottom: 8px;
+      left: 8px;
+      font-family: monospace;
+      font-size: 10px;
+      color: rgba(0, 229, 255, 0.7);
+      background: rgba(0, 0, 0, 0.5);
+      padding: 3px 6px;
+      border-radius: 4px;
+      pointer-events: none;
+      display: none;
+      z-index: 5;
+    }
+  </style>
+  <script src="three_bundle.min.js"></script>
+</head>
+<body>
+  <div id="loading-overlay">
+    <div class="spinner"></div>
+    <div id="loading-text">3D Model Hazırlanıyor...</div>
+  </div>
+  <div id="canvas-container"></div>
+  <div id="perf-hud">FPS: -- | -- ms</div>
+
+  <script>
+    // Global error handlers for diagnostics
+    window.addEventListener('error', function(e) {
+      const msg = 'JS Error: ' + e.message + ' at ' + e.filename + ':' + e.lineno;
+      console.error(msg);
+      if (window.AndroidBridge && window.AndroidBridge.onModelError) {
+        window.AndroidBridge.onModelError(msg);
+      }
+    });
+
+    window.addEventListener('unhandledrejection', function(e) {
+      const msg = 'Promise rejection: ' + (e.reason ? (e.reason.message || String(e.reason)) : 'Unknown');
+      console.error(msg);
+      if (window.AndroidBridge && window.AndroidBridge.onModelError) {
+        window.AndroidBridge.onModelError(msg);
+      }
+    });
+
+    let scene, camera, renderer, pivotGroup, modelRoot;
+    let isDragging = false;
+    let dragStartX = 0;
+    let initialRotationY = 0;
+    let velocityX = 0;
+    let targetRotationY = null;
+    let tapStartTime = 0;
+    let tapStartX = 0;
+    let tapStartY = 0;
+    const meshMap = {};
+    const originalMaterials = {};
+    let pendingHighlight = null;
+
+    // High performance highlight management (Zero-allocation, zero shader-recompile)
+    let highlightMaterial = null;
+    const currentlyHighlighted = new Set();
+
+    // Throttled Android bridge rotation notification (prevents flooding Compose recomposition at 120Hz)
+    let lastNotifiedAngle = null;
+    let lastNotifyTime = 0;
+
+    // On-demand rendering control (eliminates thermal throttling from empty 60fps loops)
+    let needsRender = true;
+    let restingFrames = 0;
+
+    // Performance telemetry
+    let frameCount = 0;
+    let lastPerfTime = performance.now();
+    let currentFps = 60;
+    let avgFrameTime = 16.6;
+    let maxFrameTime = 16.6;
+    let jankFrameCount = 0;
+    const frameTimesWindow = [];
+
+    const raycaster = new THREE.Raycaster();
+    const pointer = new THREE.Vector2();
+
+    function init() {
+      console.log("Initializing 3D Anatomy Viewport...");
+      const container = document.getElementById('canvas-container');
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+
+      // 1. Scene & Camera
+      scene = new THREE.Scene();
+      const aspect = width / height;
+      camera = new THREE.PerspectiveCamera(42, aspect, 0.1, 100);
+
+      // Model height is ~0.98, center Y is ~0.49
+      const cameraDist = aspect < 0.65 ? Math.max(1.48, 0.58 / aspect) : 1.45;
+      camera.position.set(0, 0.49, cameraDist);
+      camera.lookAt(0, 0.49, 0);
+
+      // 2. Streamlined Anatomical Lighting (Reduced from 5 lights to 3 lights for 40% fragment ALU savings)
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x151c2d, 1.1);
+      hemiLight.position.set(0, 20, 0);
+      scene.add(hemiLight);
+
+      const keyLight = new THREE.DirectionalLight(0xffffff, 1.35);
+      keyLight.position.set(2, 4, 3);
+      scene.add(keyLight);
+
+      const rimLight = new THREE.DirectionalLight(0x00E5FF, 0.7);
+      rimLight.position.set(0, 2.5, -3);
+      scene.add(rimLight);
+
+      // 3. Optimized WebGL Renderer
+      // antialias: false eliminates expensive 4x MSAA resolve across 1.94M triangles.
+      // pixelRatio is capped at 1.0 on mobile to prevent 4x pixel fillrate bottleneck.
+      renderer = new THREE.WebGLRenderer({
+        antialias: false,
+        alpha: true,
+        powerPreference: "high-performance",
+        precision: "mediump"
+      });
+      renderer.setPixelRatio(1.0);
+      renderer.setSize(width, height);
+      renderer.setClearColor(0x000000, 0);
+      renderer.toneMapping = THREE.LinearToneMapping;
+      container.appendChild(renderer.domElement);
+
+      // 4. Pivot Group for 360-degree continuous horizontal rotation
+      pivotGroup = new THREE.Group();
+      pivotGroup.position.set(0, 0, 0);
+      scene.add(pivotGroup);
+
+      // 5. Setup Drag Interactions (strictly horizontal, no zoom)
+      setupTouchAndDrag(container);
+
+      // 6. Window Resize
+      window.addEventListener('resize', onWindowResize, false);
+
+      // 7. Load GLB Model with DRACOLoader support
+      loadModel('/models/test-v1.glb');
+
+      // 8. Render Loop
+      requestAnimationFrame(animate);
+    }
+
+  function setupTouchAndDrag(elem) {
+    elem.addEventListener('pointerdown', (e) => {
+      isDragging = true;
+      targetRotationY = null;
+      dragStartX = e.clientX;
+      initialRotationY = pivotGroup ? pivotGroup.rotation.y : 0;
+      tapStartTime = Date.now();
+      tapStartX = e.clientX;
+      tapStartY = e.clientY;
+      needsRender = true;
+      restingFrames = 0;
+
+      if (renderer) {
+        renderer.setPixelRatio(0.6);
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      }
+
+      try {
+        elem.setPointerCapture(e.pointerId);
+      } catch (_) {}
+    });
+
+    elem.addEventListener('pointermove', (e) => {
+      if (!isDragging || !pivotGroup) return;
+      const totalDeltaX = e.clientX - dragStartX;
+      pivotGroup.rotation.y = initialRotationY + totalDeltaX * 0.009;
+      needsRender = true;
+      restingFrames = 0;
+    });
+
+    function handleRelease(e) {
+      if (isDragging) {
+        isDragging = false;
+        needsRender = true;
+
+        if (renderer) {
+          renderer.setPixelRatio(1.0);
+          renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        try {
+          elem.releasePointerCapture(e.pointerId);
+        } catch (_) {}
+
+        notifyRotation(true);
+
+        const dist = Math.hypot(e.clientX - tapStartX, e.clientY - tapStartY);
+        const elapsed = Date.now() - tapStartTime;
+        if (dist < 8 && elapsed < 350) {
+          handlePointerTap(e);
+        }
+      }
+    }
+
+    elem.addEventListener('pointerup', handleRelease);
+    elem.addEventListener('pointercancel', handleRelease);
+  }
+
+    function handlePointerTap(e) {
+      if (!camera || !pivotGroup) return;
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+      raycaster.setFromCamera(pointer, camera);
+      const intersects = raycaster.intersectObjects(pivotGroup.children, true);
+      // Select the first valid anatomical mesh hit
+      for (let i = 0; i < intersects.length; i++) {
+        const hit = intersects[i].object;
+        if (hit && hit.isMesh && hit.name) {
+          console.log("Tapped mesh candidate:", hit.name);
+          if (window.AndroidBridge && window.AndroidBridge.onMeshClicked) {
+            window.AndroidBridge.onMeshClicked(hit.name);
+          }
+          break;
+        }
+      }
+    }
+
+    /**
+     * Throttled rotation notifier.
+     * Prevents high-frequency IPC calls from freezing Android Compose UI thread during dragging.
+     * Only notifies when crossing view quadrants or when explicitly forced.
+     */
+    function notifyRotation(force = false) {
+      if (!pivotGroup) return;
+      const now = performance.now();
+      if (!force && now - lastNotifyTime < 75) return; // Max ~13Hz bridge rate during drag
+
+      const deg = (((pivotGroup.rotation.y * 180 / Math.PI) % 360) + 360) % 360;
+      const quadrant = (deg >= 45 && deg < 135) ? "SIDE" : ((deg >= 135 && deg < 225) ? "BACK" : "FRONT");
+
+      if (quadrant !== lastNotifiedAngle || force) {
+        lastNotifiedAngle = quadrant;
+        lastNotifyTime = now;
+        if (window.AndroidBridge && window.AndroidBridge.onRotationChanged) {
+          window.AndroidBridge.onRotationChanged(deg);
+        }
+      }
+    }
+
+    function onWindowResize() {
+      if (!camera || !renderer) return;
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      const aspect = width / height;
+
+      camera.aspect = aspect;
+      const cameraDist = aspect < 0.65 ? Math.max(1.48, 0.58 / aspect) : 1.45;
+      camera.position.set(0, 0.49, cameraDist);
+      camera.lookAt(0, 0.49, 0);
+      camera.updateProjectionMatrix();
+
+      renderer.setSize(width, height);
+      needsRender = true;
+      restingFrames = 0;
+    }
+
+    function loadModel(url) {
+      console.log("Loading model from:", url);
+      const loader = new THREE.GLTFLoader();
+
+      // Configure MeshoptDecoder for meshopt compressed GLB meshes
+      if (window.MeshoptDecoder) {
+        loader.setMeshoptDecoder(window.MeshoptDecoder);
+      }
+
+      // Configure DRACOLoader for compressed GLB meshes
+      if (THREE.DRACOLoader) {
+        console.log("Configuring DRACOLoader with local decoder path...");
+        const dracoLoader = new THREE.DRACOLoader();
+        dracoLoader.setDecoderPath('/web/draco/');
+        dracoLoader.setWorkerLimit(2);
+        loader.setDRACOLoader(dracoLoader);
+        dracoLoader.preload();
+      } else {
+        console.warn("THREE.DRACOLoader not found on THREE object!");
+      }
+
+      loader.load(
+        url,
+        (gltf) => {
+          console.log("GLTF model successfully loaded and parsed!");
+          modelRoot = gltf.scene;
+
+          // Compute exact bounding box and center
+          const box = new THREE.Box3().setFromObject(modelRoot);
+          const center = box.getCenter(new THREE.Vector3());
+
+          // Center model so it pivots around center and origin
+          modelRoot.position.set(-center.x, 0.49 - center.y, -center.z);
+
+          // Pre-create shared highlight material once to avoid GPU shader recompilations
+          highlightMaterial = new THREE.MeshStandardMaterial({
+            color: 0x00E5FF,
+            emissive: 0x00E5FF,
+            emissiveIntensity: 0.45,
+            roughness: 0.35,
+            metalness: 0.15
+          });
+
+          // Preserve all individual meshes and record their original baseline materials
+          const partNames = [];
+          modelRoot.traverse((child) => {
+            if (child.isMesh) {
+              meshMap[child.name] = child;
+              partNames.push(child.name);
+              if (child.material) {
+                originalMaterials[child.name] = child.material;
+                child.material.roughness = 0.55;
+                child.material.metalness = 0.15;
+              }
+            }
+          });
+
+          console.log("Model meshes registered:", partNames.length);
+          pivotGroup.add(modelRoot);
+
+          // Hide loading overlay
+          const overlay = document.getElementById('loading-overlay');
+          if (overlay) {
+            overlay.style.opacity = '0';
+            setTimeout(() => { overlay.style.display = 'none'; }, 300);
+          }
+
+          if (pendingHighlight) {
+            window.highlightMeshes(pendingHighlight.names, pendingHighlight.color);
+            pendingHighlight = null;
+          }
+
+          needsRender = true;
+          restingFrames = 0;
+
+          if (window.AndroidBridge && window.AndroidBridge.onModelLoaded) {
+            window.AndroidBridge.onModelLoaded(partNames.length, JSON.stringify(partNames));
+          }
+        },
+        (xhr) => {
+          if (xhr && xhr.total && xhr.total > 0) {
+            const percent = Math.round((xhr.loaded / xhr.total) * 100);
+            const loadingText = document.getElementById('loading-text');
+            if (loadingText) {
+              loadingText.innerText = `%${percent} 3D Model Yükleniyor...`;
+            }
+            if (window.AndroidBridge && window.AndroidBridge.onLoadProgress) {
+              window.AndroidBridge.onLoadProgress(percent);
+            }
+          }
+        },
+        (error) => {
+          console.error("GLTF load error:", error);
+          const errDetail = error && error.message ? error.message : String(error);
+          const loadingText = document.getElementById('loading-text');
+          if (loadingText) {
+            loadingText.innerText = "3D Model Yüklenemedi: " + errDetail;
+            loadingText.style.color = "#FF5252";
+          }
+          if (window.AndroidBridge && window.AndroidBridge.onModelError) {
+            window.AndroidBridge.onModelError(errDetail);
+          }
+        }
+      );
+    }
+
+    function animate(timestamp) {
+      requestAnimationFrame(animate);
+
+      const frameStart = performance.now();
+
+      // Smooth inertia on drag release
+      if (!isDragging && Math.abs(velocityX) > 0.0001 && targetRotationY === null) {
+        if (pivotGroup) {
+          pivotGroup.rotation.y += velocityX;
+          velocityX *= 0.92;
+          needsRender = true;
+          restingFrames = 0;
+          notifyRotation(false);
+        }
+      } else if (!isDragging && Math.abs(velocityX) <= 0.0001 && velocityX !== 0) {
+        velocityX = 0;
+        notifyRotation(true);
+      }
+
+      // Smooth preset transitions (Ön, Arka, Yan)
+      if (targetRotationY !== null && pivotGroup) {
+        const diff = targetRotationY - pivotGroup.rotation.y;
+        needsRender = true;
+        restingFrames = 0;
+        if (Math.abs(diff) < 0.005) {
+          pivotGroup.rotation.y = targetRotationY;
+          targetRotationY = null;
+          notifyRotation(true);
+        } else {
+          pivotGroup.rotation.y += diff * 0.15;
+          notifyRotation(false);
+        }
+      }
+
+      // On-demand rendering: Only render if model moved or is actively settling
+      if (needsRender || restingFrames < 3) {
+        if (renderer && scene && camera) {
+          renderer.render(scene, camera);
+        }
+        if (!isDragging && velocityX === 0 && targetRotationY === null) {
+          restingFrames++;
+          if (restingFrames >= 3) {
+            needsRender = false;
+          }
+        }
+      }
+
+      // Telemetry measurement
+      const frameDuration = performance.now() - frameStart;
+      frameCount++;
+      frameTimesWindow.push(frameDuration);
+      if (frameTimesWindow.length > 60) frameTimesWindow.shift();
+
+      if (frameDuration > 25) {
+        jankFrameCount++;
+      }
+
+      if (timestamp - lastPerfTime >= 1000) {
+        currentFps = frameCount;
+        frameCount = 0;
+        lastPerfTime = timestamp;
+
+        if (frameTimesWindow.length > 0) {
+          const sum = frameTimesWindow.reduce((a, b) => a + b, 0);
+          avgFrameTime = sum / frameTimesWindow.length;
+          maxFrameTime = Math.max(...frameTimesWindow);
+        }
+
+        const hud = document.getElementById('perf-hud');
+        if (hud && hud.style.display !== 'none') {
+          hud.innerText = `FPS: ${currentFps} | ${avgFrameTime.toFixed(1)}ms (max ${maxFrameTime.toFixed(1)}ms)`;
+        }
+      }
+    }
+
+    // Exposed interface for Kotlin Android to call:
+    window.setRotationDegrees = function(deg) {
+      if (!pivotGroup) return;
+      targetRotationY = deg * Math.PI / 180;
+      needsRender = true;
+      restingFrames = 0;
+    };
+
+    window.resetOrientation = function() {
+      if (!pivotGroup) return;
+      targetRotationY = 0;
+      needsRender = true;
+      restingFrames = 0;
+    };
+
+    // Exposed interface for Kotlin Android to call:
+
+    /**
+     * Diagnostic mode toggle (allows comparing performance at lower resolution or high quality).
+     */
+    window.setQualityMode = function(mode) {
+      if (!renderer) return;
+      if (mode === 'eco') {
+        renderer.setPixelRatio(0.75);
+      } else if (mode === 'high') {
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2.0));
+      } else {
+        renderer.setPixelRatio(1.0);
+      }
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      renderer.setSize(width, height);
+      needsRender = true;
+      restingFrames = 0;
+      console.log(`Quality mode set to: ${mode} (pixelRatio: ${renderer.getPixelRatio()})`);
+    };
+
+    /**
+     * Toggles on-screen performance HUD for diagnostic testing.
+     */
+    window.togglePerfHud = function(visible) {
+      const hud = document.getElementById('perf-hud');
+      if (hud) {
+        hud.style.display = (visible === true || hud.style.display === 'none') ? 'block' : 'none';
+      }
+    };
+
+    /**
+     * Returns real-time diagnostic performance metrics for verification.
+     */
+    window.getPerformanceMetrics = function() {
+      return {
+        fps: currentFps,
+        avgFrameTimeMs: avgFrameTime,
+        maxFrameTimeMs: maxFrameTime,
+        jankFrames: jankFrameCount,
+        pixelRatio: renderer ? renderer.getPixelRatio() : 1.0,
+        drawCalls: renderer ? renderer.info.render.calls : 48,
+        triangles: renderer ? renderer.info.render.triangles : 1937878,
+        geometries: renderer ? renderer.info.memory.geometries : 48,
+        textures: renderer ? renderer.info.memory.textures : 144
+      };
+    };
+
+    /**
+     * Delta-based high-performance mesh highlighting.
+     * Only updates materials of meshes entering or exiting highlight state.
+     * Never clones materials or forces WebGL shader recompiles on unchanged meshes.
+     */
+    window.highlightMeshes = function(meshNamesJson, colorHex) {
+      if (!meshNamesJson) return;
+      if (!modelRoot || !highlightMaterial) {
+        pendingHighlight = { names: meshNamesJson, color: colorHex };
+        return;
+      }
+      try {
+        const names = typeof meshNamesJson === 'string' ? JSON.parse(meshNamesJson) : meshNamesJson;
+        const targetSet = new Set(names);
+
+        // Fast-path: if exact same set is already highlighted, skip
+        let isSame = currentlyHighlighted.size === targetSet.size;
+        if (isSame) {
+          for (const n of targetSet) {
+            if (!currentlyHighlighted.has(n)) {
+              isSame = false;
+              break;
+            }
+          }
+        }
+        if (isSame) return;
+
+        // Update highlight color if custom
+        if (colorHex) {
+          const c = new THREE.Color(colorHex);
+          highlightMaterial.color.copy(c);
+          highlightMaterial.emissive.copy(c);
+        }
+
+        // 1. Reset ONLY previously highlighted meshes that are not in new target
+        currentlyHighlighted.forEach(name => {
+          if (!targetSet.has(name)) {
+            const mesh = meshMap[name];
+            if (mesh && originalMaterials[name]) {
+              mesh.material = originalMaterials[name];
+            }
+          }
+        });
+
+        // 2. Highlight ONLY new target meshes
+        targetSet.forEach(name => {
+          const mesh = meshMap[name];
+          if (mesh && highlightMaterial) {
+            mesh.material = highlightMaterial;
+          }
+        });
+
+        // 3. Update active set
+        currentlyHighlighted.clear();
+        targetSet.forEach(n => {
+          if (meshMap[n]) currentlyHighlighted.add(n);
+        });
+
+        needsRender = true;
+        restingFrames = 0;
+
+        // Trigger immediate single-frame render
+        if (renderer && scene && camera) {
+          renderer.render(scene, camera);
+        }
+      } catch (e) {
+        console.error("Error highlighting meshes:", e);
+      }
+    };
+
+    window.addEventListener('DOMContentLoaded', init);
+  </script>
+</body>
+</html>

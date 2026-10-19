@@ -1,0 +1,110 @@
+<resources>
+    <string name="app_name">Anabolik Atlas</string>
+    <string name="nav_home">Ana Sayfa</string>
+    <string name="nav_program">Program</string>
+    <string name="nav_explore">Keşfet</string>
+    <string name="nav_nutrition">Beslenme</string>
+    <string name="nav_profile">Profil</string>
+    <string name="nav_model_3d">3D Model</string>
+    <string name="nav_progress">Gelişim</string>
+
+    <!-- Ana Sayfa -->
+    <string name="greeting_welcome">Merhaba</string>
+    <string name="greeting_sub">Bugün daha güçlü bir sen için hazırsın!</string>
+    <string name="today_workout">Bugünkü Antrenman</string>
+    <string name="start_workout">Antrenmanı Başlat</string>
+    <string name="metric_calories">Kalori</string>
+    <string name="metric_water">Su</string>
+    <string name="metric_sleep">Uyku</string>
+    <string name="metric_steps">Adım</string>
+    <string name="progress_summary">Gelişim Özeti</string>
+    <string name="this_week">Bu Hafta</string>
+    <string name="workouts_count">Antrenman</string>
+    <string name="volume_change">Hacim</string>
+    <string name="weight_change">Ağırlık</string>
+    <string name="fat_ratio">Yağ Oranı</string>
+
+    <!-- 3D Model -->
+    <string name="title_3d_model">3D Kas Modeli</string>
+    <string name="view_front">Ön</string>
+    <string name="view_back">Arka</string>
+    <string name="view_side">Yan</string>
+    <string name="muscle_chest">Göğüs</string>
+    <string name="muscle_back">Sırt</string>
+    <string name="muscle_shoulders">Omuz</string>
+    <string name="muscle_arms">Kol</string>
+    <string name="muscle_abs">Karın</string>
+    <string name="muscle_legs">Bacak</string>
+    <string name="detailed_anatomy">Detaylı Anatomi</string>
+    <string name="view_exercises">İlgili Egzersizleri Gör</string>
+    <string name="model_placeholder_title">Geliştirme Modeli / Asset Bekleniyor</string>
+    <string name="model_placeholder_desc">Tripo 3D\'den dışa aktarılan FBX modelinizi Profil menüsünden içe aktarabilirsiniz.</string>
+    <string name="import_model_cta">3D Modeli İçe Aktar</string>
+
+    <!-- Egzersiz & Antrenman -->
+    <string name="exercise_detail">Egzersiz Detayı</string>
+    <string name="add_to_workout">Antrenmana Ekle</string>
+    <string name="how_to_perform">Nasıl Yapılır?</string>
+    <string name="target_muscles">Hedef Kaslar</string>
+    <string name="primary_muscle">Primer</string>
+    <string name="secondary_muscle">Sekonder</string>
+    <string name="active_workout">Antrenman Ekranı</string>
+    <string name="complete_set">Seti Tamamla</string>
+    <string name="finish_workout">Antrenmanı Bitir</string>
+    <string name="rest_timer">Dinlenme</string>
+    <string name="weight_kg">Ağırlık (kg)</string>
+    <string name="repetitions">Tekrar</string>
+    <string name="set_label">Set</string>
+
+    <!-- Beslenme -->
+    <string name="nutrition_title">Beslenme</string>
+    <string name="add_food">Yiyecek Ekle</string>
+    <string name="today">Bugün</string>
+    <string name="meals">Öğünler</string>
+    <string name="recipes">Tarifler</string>
+    <string name="foods">Yiyecekler</string>
+    <string name="protein">Protein</string>
+    <string name="carbs">Karbonhidrat</string>
+    <string name="fat">Yağ</string>
+    <string name="kcal_unit">kcal</string>
+    <string name="gram_unit">g</string>
+
+    <!-- Gelişim & İstatistikler -->
+    <string name="progress_title">Gelişim / İstatistikler</string>
+    <string name="tab_weight">Ağırlık</string>
+    <string name="tab_measurements">Vücut Ölçüleri</string>
+    <string name="tab_performance">Performans</string>
+    <string name="muscle_mass">Kas Kütlesi</string>
+    <string name="strength_gain">Güç Artışı</string>
+    <string name="training_volume">Antrenman Hacmi</string>
+    <string name="add_measurement">Ölçüm Ekle</string>
+
+    <!-- Yaşam Takibi -->
+    <string name="lifestyle_title">Yaşam Takibi</string>
+    <string name="tab_water">Su</string>
+    <string name="tab_sleep">Uyku</string>
+    <string name="tab_steps">Adım</string>
+    <string name="tab_mood">Ruh Hali</string>
+    <string name="weekly_average">Bu Hafta Ortalaması</string>
+    <string name="reminders">Hatırlatıcılar</string>
+
+    <!-- Profil -->
+    <string name="profile_title">Profil</string>
+    <string name="my_goals">Hedeflerim</string>
+    <string name="my_measurements">Vücut Ölçülerim</string>
+    <string name="personal_info">Kişisel Bilgiler</string>
+    <string name="premium_features">Premium Özellikler</string>
+    <string name="settings">Ayarlar</string>
+    <string name="data_backup">Veri Yedekleme</string>
+    <string name="help_support">Yardım ve Destek</string>
+    <string name="model_manager">3D Model Yöneticisi</string>
+
+    <!-- Eylemler & Diyaloglar -->
+    <string name="action_save">Kaydet</string>
+    <string name="action_cancel">İptal</string>
+    <string name="action_delete">Sil</string>
+    <string name="action_edit">Düzenle</string>
+    <string name="action_close">Kapat</string>
+    <string name="search_placeholder">Egzersiz ara...</string>
+    <string name="food_search_placeholder">Yiyecek veya besin ara...</string>
+</resources>

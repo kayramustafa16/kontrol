@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Stylized Anabolic Atlas Core Crest -->
+    <!-- Head / Apex -->
+    <path
+        android:fillColor="#00E5FF"
+        android:pathData="M54,26 A5,5 0 1,0 54,36 A5,5 0 1,0 54,26 Z" />
+    <!-- Traps & Shoulders -->
+    <path
+        android:fillColor="#00E5FF"
+        android:pathData="M44,38 L64,38 L72,46 L68,52 L54,46 L40,52 L36,46 Z" />
+    <!-- Chest (Pectorals) - Crimson Core Accent -->
+    <path
+        android:fillColor="#FF3B30"
+        android:pathData="M41,54 L53,48 L53,60 L41,58 Z" />
+    <path
+        android:fillColor="#FF3B30"
+        android:pathData="M67,54 L55,48 L55,60 L67,58 Z" />
+    <!-- Core / Abs - Cyan Geometrics -->
+    <path
+        android:fillColor="#00E5FF"
+        android:pathData="M45,63 L53,62 L53,68 L46,68 Z" />
+    <path
+        android:fillColor="#00E5FF"
+        android:pathData="M63,63 L55,62 L55,68 L62,68 Z" />
+    <path
+        android:fillColor="#00B0FF"
+        android:pathData="M46,70 L53,69 L53,75 L47,75 Z" />
+    <path
+        android:fillColor="#00B0FF"
+        android:pathData="M62,70 L55,69 L55,75 L61,75 Z" />
+    <!-- Atlas Angular Frame / Wing Contour -->
+    <path
+        android:strokeColor="#00E5FF"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000"
+        android:pathData="M30,50 L26,62 L34,74 L54,84 L74,74 L82,62 L78,50" />
+</vector>
